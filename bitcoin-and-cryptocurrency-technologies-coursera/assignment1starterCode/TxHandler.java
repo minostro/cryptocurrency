@@ -1,6 +1,7 @@
 import java.util.Objects;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.stream.Stream;
 import java.util.stream.Collectors;
 import java.util.Optional;
@@ -72,11 +73,19 @@ public class TxHandler {
      * updating the current UTXO pool as appropriate.
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        List<Transaction> validTransactions = Arrays.stream(possibleTxs).filter(this::isValidTx).collect(Collectors.toList());
-        validTransactions.stream()
-            .flatMap(t -> t.getInputs().stream())
-            .forEach(i -> utxoPool.removeUTXO(new UTXO(i.prevTxHash, i.outputIndex)));
+        List<Transaction> validTransactions = new ArrayList();
+        Arrays.stream(possibleTxs).forEach(t -> {
+                if (isValidTx(t)) {
+                    handleTx(t);
+                    validTransactions.add(t);
+                }
+            });
         return validTransactions.toArray(new Transaction[validTransactions.size()]);
     }
 
+    private void handleTx(final Transaction tx) {
+        tx.getInputs().stream()
+            .map(i -> new UTXO(i.prevTxHash, i.outputIndex))
+            .forEach(utxo -> utxoPool.removeUTXO(utxo));
+    }
 }
