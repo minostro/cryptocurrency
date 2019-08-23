@@ -29,7 +29,8 @@ public class TxHandler {
      */
     public boolean isValidTx(Transaction tx) {
         boolean areInputsInUTXOPool = !tx.getInputs().stream()
-            .filter(i -> !utxoPool.contains(new UTXO(i.prevTxHash, i.outputIndex)))
+            .map(this::buildUTXO)
+            .filter(utxo -> !utxoPool.contains(utxo))
             .findFirst()
             .isPresent();
         boolean areOutputValuesNonNegative = !tx.getOutputs().stream()
@@ -37,7 +38,8 @@ public class TxHandler {
             .findFirst()
             .isPresent();
         double inputsValue = tx.getInputs().stream()
-            .map(i -> utxoPool.getTxOutput(new UTXO(i.prevTxHash, i.outputIndex)))
+            .map(this::buildUTXO)
+            .map(utxo -> utxoPool.getTxOutput(utxo))
             .filter(Objects::nonNull)
             .map(o -> o.value)
             .reduce(0.0, (x, y) -> x + y);
@@ -45,7 +47,7 @@ public class TxHandler {
             .map(o -> o.value)
             .reduce(0.0, (x, y) -> x + y);
         boolean areUTXOClaimedOnlyOnce = !tx.getInputs().stream()
-            .map(i -> new UTXO(i.prevTxHash, i.outputIndex))
+            .map(this::buildUTXO)
             .collect(Collectors.groupingBy(UTXO::hashCode))
             .entrySet()
             .stream()
@@ -54,7 +56,7 @@ public class TxHandler {
             .isPresent();
         boolean areAllInputSignaturesValid = !tx.getInputs().stream()
             .filter(i -> {
-                    Optional<Transaction.Output> output = Optional.ofNullable(utxoPool.getTxOutput(new UTXO(i.prevTxHash, i.outputIndex)));
+                    Optional<Transaction.Output> output = Optional.ofNullable(utxoPool.getTxOutput(buildUTXO(i)));
                     if (output.isPresent())
                         return !Crypto.verifySignature(output.get().address, tx.getRawDataToSign(i.outputIndex), i.signature);
                     else
@@ -73,7 +75,7 @@ public class TxHandler {
      * updating the current UTXO pool as appropriate.
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        List<Transaction> validTransactions = new ArrayList();
+        List<Transaction> validTransactions = new ArrayList<Transaction>();
         Arrays.stream(possibleTxs).forEach(t -> {
                 if (isValidTx(t)) {
                     handleTx(t);
@@ -85,7 +87,11 @@ public class TxHandler {
 
     private void handleTx(final Transaction tx) {
         tx.getInputs().stream()
-            .map(i -> new UTXO(i.prevTxHash, i.outputIndex))
+            .map(this::buildUTXO)
             .forEach(utxo -> utxoPool.removeUTXO(utxo));
+    }
+
+    private UTXO buildUTXO(final Transaction.Input input) {
+        return new UTXO(input.prevTxHash, input.outputIndex);
     }
 }
