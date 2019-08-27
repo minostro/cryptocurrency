@@ -3,6 +3,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.stream.Stream;
+import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 import java.util.Optional;
 
@@ -54,13 +55,15 @@ public class TxHandler {
             .filter(x -> x.getValue().size() > 1)
             .findFirst()
             .isPresent();
-        boolean areAllInputSignaturesValid = !tx.getInputs().stream()
-            .filter(i -> {
+        boolean areAllInputSignaturesValid = !IntStream.range(0, tx.getInputs().size())
+            .filter(index -> {
+                    Transaction.Input i = tx.getInputs().get(index);
                     Optional<Transaction.Output> output = Optional.ofNullable(utxoPool.getTxOutput(buildUTXO(i)));
                     if (output.isPresent())
-                        return !Crypto.verifySignature(output.get().address, tx.getRawDataToSign(i.outputIndex), i.signature);
+                        return !Crypto.verifySignature(output.get().address, tx.getRawDataToSign(index), i.signature);
                     else
                         return false;
+
                 })
             .findFirst()
             .isPresent();
